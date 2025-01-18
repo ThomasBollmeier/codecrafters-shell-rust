@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-#[allow(unused_imports)]
+use std::env;
 use std::io::{self, Write};
 use anyhow::{anyhow, Result};
 
@@ -56,9 +56,31 @@ fn handle_input(input: &str) -> Result<ExecResult> {
             println!("{command} is a shell builtin");
             Ok(ExecResult::Continue)
         } else {
-            Err(anyhow!("{command}: not found"))
+            find_command_in_path(&command).map(|cmd_path| {
+                println!("{command} is {cmd_path}");
+                ExecResult::Continue
+            })
         }
     }
 
     Err(anyhow!("{}: command not found", input.trim()))
+}
+
+fn find_command_in_path(command: &str) -> Result<String> {
+    let path_var = env::var("PATH")?;
+    for path in env::split_paths(&path_var) {
+        let mut exec_path = path;
+        exec_path.push(command);
+        match exec_path.try_exists() {
+            Ok(true) => {
+                match exec_path.to_str() {
+                    Some(exec_path) => return Ok(exec_path.to_string()),
+                    None => continue,
+                }
+            },
+            _ => continue,
+        }
+    }
+
+    Err(anyhow!("{command}: not found"))
 }
