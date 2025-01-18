@@ -7,12 +7,15 @@ fn main() {
 }
 
 enum ExecResult {
-    Exit(i32)
+    Exit(i32),
+    Continue,
 }
+
+const PROMPT: &str = "$ ";
 
 fn repl() -> i32 {
     loop {
-        print!("$ ");
+        print!("{}", PROMPT);
         io::stdout().flush().unwrap();
 
         // Wait for user input
@@ -21,8 +24,9 @@ fn repl() -> i32 {
         stdin.read_line(&mut input).unwrap();
 
         match handle_input(&input) {
-            Ok(exec_result   ) => return match exec_result {
-                ExecResult::Exit(code) => code,
+            Ok(exec_result   ) => match exec_result {
+                ExecResult::Exit(code) => return code,
+                ExecResult::Continue => continue,
             },
             Err(msg)        => eprintln!("{}", msg),
         }
@@ -32,6 +36,11 @@ fn repl() -> i32 {
 fn handle_input(input: &str) -> Result<ExecResult> {
     if input.starts_with("exit") {
         return Ok(ExecResult::Exit(0));
+    }
+
+    if input.starts_with("echo ") {
+        print!("{}", &input[5..]);
+        return Ok(ExecResult::Continue);
     }
 
     Err(anyhow!(format!("{}: command not found", input.trim())))
