@@ -1,11 +1,16 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use anyhow::{anyhow, Result};
 
 fn main() {
-    repl();
+    std::process::exit(repl());
 }
 
-fn repl() {
+enum ExecResult {
+    Exit(i32)
+}
+
+fn repl() -> i32 {
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
@@ -15,6 +20,19 @@ fn repl() {
         let mut input = String::new();
         stdin.read_line(&mut input).unwrap();
 
-        eprintln!("{}: command not found", input.trim());
+        match handle_input(&input) {
+            Ok(exec_result   ) => return match exec_result {
+                ExecResult::Exit(code) => code,
+            },
+            Err(msg)        => eprintln!("{}", msg),
+        }
     }
+}
+
+fn handle_input(input: &str) -> Result<ExecResult> {
+    if input.starts_with("exit") {
+        return Ok(ExecResult::Exit(0));
+    }
+
+    Err(anyhow!(format!("{}: command not found", input.trim())))
 }
