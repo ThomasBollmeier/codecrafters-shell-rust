@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use anyhow::{anyhow, Result};
@@ -34,6 +35,12 @@ fn repl() -> i32 {
 }
 
 fn handle_input(input: &str) -> Result<ExecResult> {
+    let built_in_commands = HashSet::from([
+        "exit",
+        "echo",
+        "type",
+    ]);
+
     if input.starts_with("exit") {
         return Ok(ExecResult::Exit(0));
     }
@@ -43,5 +50,15 @@ fn handle_input(input: &str) -> Result<ExecResult> {
         return Ok(ExecResult::Continue);
     }
 
-    Err(anyhow!(format!("{}: command not found", input.trim())))
+    if input.starts_with("type ") {
+        let command = input[5..].trim().to_string();
+        return if built_in_commands.contains(&command.as_str()) {
+            println!("{command} is a shell builtin");
+            Ok(ExecResult::Continue)
+        } else {
+            Err(anyhow!("{command}: not found"))
+        }
+    }
+
+    Err(anyhow!("{}: command not found", input.trim()))
 }
