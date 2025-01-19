@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::io::{self, Write};
+use std::process::Command;
 use anyhow::{anyhow, Result};
 
 fn main() {
@@ -36,34 +37,45 @@ fn repl() -> i32 {
 
 fn handle_input(input: &str) -> Result<ExecResult> {
     let built_in_commands = HashSet::from([
-        "exit",
-        "echo",
-        "type",
+        "exit".to_string(),
+        "echo".to_string(),
+        "type".to_string(),
     ]);
 
-    if input.starts_with("exit") {
-        return Ok(ExecResult::Exit(0));
-    }
+    let (command, args) = parse_input(input)?;
 
-    if input.starts_with("echo ") {
-        print!("{}", &input[5..]);
-        return Ok(ExecResult::Continue);
-    }
-
-    if input.starts_with("type ") {
-        let command = input[5..].trim().to_string();
-        return if built_in_commands.contains(&command.as_str()) {
-            println!("{command} is a shell builtin");
+    match command.as_str() {
+        "exit" => Ok(ExecResult::Exit(0)),
+        "echo" => {
+            print!("{}", &input[5..]);
             Ok(ExecResult::Continue)
-        } else {
-            find_command_in_path(&command).map(|cmd_path| {
-                println!("{command} is {cmd_path}");
-                ExecResult::Continue
-            })
         }
+        "type" => {
+            let cmd = args
+                .get(0)
+                .ok_or(anyhow!("Missing command argument"))?;
+            if built_in_commands.contains(cmd) {
+                println!("{cmd} is a shell builtin");
+                Ok(ExecResult::Continue)
+            } else {
+                find_command_in_path(cmd).map(|cmd_path| {
+                    println!("{cmd} is {cmd_path}");
+                    ExecResult::Continue
+                })
+            }
+        }
+        other => find_command_in_path(other).map(|_| {
+            let output = Command::new(other)
+                .args(args)
+                .output();
+            match output {
+                Ok(output) =>
+                    print!("{}", String::from_utf8_lossy(&output.stdout)),
+                Err(err) => eprint!("{}", err),
+            }
+            ExecResult::Continue
+        })
     }
-
-    Err(anyhow!("{}: command not found", input.trim()))
 }
 
 fn find_command_in_path(command: &str) -> Result<String> {
@@ -83,4 +95,13 @@ fn find_command_in_path(command: &str) -> Result<String> {
     }
 
     Err(anyhow!("{command}: not found"))
+}
+
+fn parse_input(input: &str) -> Result<(String, Vec<String>)> {
+    let mut parts = input.trim().split_whitespace();
+    let command = parts.next().ok_or(anyhow!("input is empty"))?.to_string();
+    let args = parts
+        .map(|s| s.to_string())
+        .collect();
+    Ok((command, args))
 }
