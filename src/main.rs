@@ -37,19 +37,28 @@ fn repl() -> i32 {
 
 fn handle_input(input: &str) -> Result<ExecResult> {
     let built_in_commands = HashSet::from([
-        "exit".to_string(),
         "echo".to_string(),
+        "exit".to_string(),
+        "pwd".to_string(),
         "type".to_string(),
     ]);
 
     let (command, args) = parse_input(input)?;
 
     match command.as_str() {
-        "exit" => Ok(ExecResult::Exit(0)),
         "echo" => {
             print!("{}", &input[5..]);
             Ok(ExecResult::Continue)
         }
+        "exit" => {
+            let code = args
+                .get(0)
+                .unwrap_or(&"0".to_string())
+                .parse::<i32>()
+                .unwrap_or(1);
+            Ok(ExecResult::Exit(code))
+        },
+        "pwd" => print_current_dir(),
         "type" => {
             let cmd = args
                 .get(0)
@@ -76,6 +85,12 @@ fn handle_input(input: &str) -> Result<ExecResult> {
             ExecResult::Continue
         })
     }
+}
+
+fn print_current_dir() -> Result<ExecResult> {
+    let current_dir = env::current_dir()?;
+    println!("{}", current_dir.display());
+    Ok(ExecResult::Continue)
 }
 
 fn find_command_in_path(command: &str) -> Result<String> {
