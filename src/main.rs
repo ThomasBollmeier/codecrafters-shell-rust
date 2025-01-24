@@ -96,13 +96,24 @@ fn print_current_dir() -> Result<ExecResult> {
 }
 
 fn change_directory(args: &Vec<String>) -> Result<ExecResult> {
-    if args.len() != 1 {
-        return Err(anyhow!("cd requires exactly 1 argument"));
-    }
-    match env::set_current_dir(&args[0]) {
+    let dir = match args.len() {
+        0 => &get_home_dir()?,
+        1 => if args[0] != "~".to_string() {
+            &args[0]
+        } else {
+            &get_home_dir()?
+        },
+        _ => return Err(anyhow!("cd allows no more then one argument"))
+    };
+
+    match env::set_current_dir(dir) {
         Ok(_) => Ok(ExecResult::Continue),
         Err(_) => Err(anyhow!("cd: {}: No such file or directory", &args[0])),
     }
+}
+
+fn get_home_dir() -> Result<String> {
+    env::var("HOME").map_err(|_| anyhow!("$HOME is not set"))
 }
 
 fn find_command_in_path(command: &str) -> Result<String> {
