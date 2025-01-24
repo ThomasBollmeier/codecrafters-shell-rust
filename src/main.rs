@@ -37,6 +37,7 @@ fn repl() -> i32 {
 
 fn handle_input(input: &str) -> Result<ExecResult> {
     let built_in_commands = HashSet::from([
+        "cd".to_string(),
         "echo".to_string(),
         "exit".to_string(),
         "pwd".to_string(),
@@ -46,6 +47,7 @@ fn handle_input(input: &str) -> Result<ExecResult> {
     let (command, args) = parse_input(input)?;
 
     match command.as_str() {
+        "cd" => change_directory(&args),
         "echo" => {
             print!("{}", &input[5..]);
             Ok(ExecResult::Continue)
@@ -91,6 +93,16 @@ fn print_current_dir() -> Result<ExecResult> {
     let current_dir = env::current_dir()?;
     println!("{}", current_dir.display());
     Ok(ExecResult::Continue)
+}
+
+fn change_directory(args: &Vec<String>) -> Result<ExecResult> {
+    if args.len() != 1 {
+        return Err(anyhow!("cd requires exactly 1 argument"));
+    }
+    match env::set_current_dir(&args[0]) {
+        Ok(_) => Ok(ExecResult::Continue),
+        Err(_) => Err(anyhow!("cd: {}: No such file or directory", &args[0])),
+    }
 }
 
 fn find_command_in_path(command: &str) -> Result<String> {
