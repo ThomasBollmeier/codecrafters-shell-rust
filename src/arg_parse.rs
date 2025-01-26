@@ -58,14 +58,30 @@ impl ArgParser {
 
     fn scan_string(&mut self) -> String {
         let mut ret = String::new();
+        let mut escaped = false;
 
         while !self.is_done() {
             let ch = self.current_char().unwrap();
-            if ch.is_whitespace() || ch == '\'' {
+            if escaped {
+                ret.push(ch);
+                self.pos += 1;
+                escaped = false;
+                continue;
+            }
+            if ch.is_whitespace() || ch == '\'' || ch == '"' {
                 break;
             }
-            ret.push(ch);
-            self.pos += 1;
+            match ch {
+                '\\' => {
+                    self.pos += 1;
+                    escaped = true;
+                    continue;
+                }
+                _ => {
+                    ret.push(ch);
+                    self.pos += 1;
+                }
+            }
         }
 
         ret
