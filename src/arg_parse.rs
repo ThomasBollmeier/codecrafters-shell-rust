@@ -21,18 +21,35 @@ impl ArgParser {
         }
 
         let mut parts: Vec<String> = vec![];
+        let mut part = String::new();
 
         while !self.is_done() {
-            self.skip_whitespaces();
+            let cnt_wspace = self.skip_whitespaces();
+
             let ch = match self.current_char() {
                 Some(ch) => ch,
                 None => break,
             };
-            let part = match ch {
+
+            let next_str = match ch {
                 '\'' => self.scan_single_quoted_string(),
                 '"' => self.scan_double_quoted_string(),
                 _ => self.scan_string(),
             };
+
+            if !part.is_empty() {
+                if cnt_wspace > 0 {
+                    parts.push(part);
+                    part = next_str;
+                } else {
+                    part.push_str(&next_str);
+                }
+            } else {
+                part = next_str;
+            }
+        }
+
+        if !part.is_empty() {
             parts.push(part);
         }
 
@@ -46,14 +63,17 @@ impl ArgParser {
         self.pos >= self.chars.len()
     }
 
-    fn skip_whitespaces(&mut self) {
+    fn skip_whitespaces(&mut self) -> usize {
+        let mut count = 0;
         while !self.is_done() {
             if self.current_char().unwrap().is_whitespace() {
                 self.pos += 1;
+                count += 1;
             } else {
                 break;
             }
         }
+        count
     }
 
     fn scan_string(&mut self) -> String {
@@ -73,15 +93,13 @@ impl ArgParser {
             }
             match ch {
                 '\\' => {
-                    self.pos += 1;
                     escaped = true;
-                    continue;
                 }
                 _ => {
                     ret.push(ch);
-                    self.pos += 1;
                 }
             }
+            self.pos += 1;
         }
 
         ret
@@ -94,15 +112,7 @@ impl ArgParser {
             let ch = self.current_char().unwrap();
             self.pos += 1;
             if ch == '\'' {
-                match self.current_char() {
-                    Some('\'') => { // two consecutive single quotes are ignored
-                        self.pos += 1;
-                        continue;
-                    }
-                    _ => {
-                        break;
-                    },
-                }
+                break;
             }
             ret.push(ch);
         }
@@ -127,15 +137,7 @@ impl ArgParser {
                         _ => {},
                     }
                 }
-                '"' => match self.current_char() {
-                    Some('"') => { // two consecutive double quotes are ignored
-                        self.pos += 1;
-                        continue;
-                    }
-                    _ => {
-                        break;
-                    },
-                },
+                '"' => break,
                 _ => {}
             }
             ret.push(ch);
