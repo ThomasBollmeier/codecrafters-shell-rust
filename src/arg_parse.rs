@@ -203,4 +203,15 @@ mod tests {
             Err(_) => assert!(true),
         }
     }
+
+    #[test]
+    fn test_parse_escaped_args() {
+        let mut parser = ArgParser::new();
+        let input = r#"echo \'\"script world\"\'"#;
+
+        let (command, args) = parser.parse_args(input).unwrap();
+
+        assert_eq!(command, "echo");
+        assert_eq!(args, vec!["'\"script world\"'"]);
+    }
 }

@@ -1,11 +1,13 @@
+use crate::arg_parse::ArgParser;
+use crate::redirect::{Output, RedirectionInfo};
+use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::env;
 use std::io::{self, Write};
 use std::process::Command;
-use anyhow::{anyhow, Result};
-use crate::arg_parse::ArgParser;
 
 mod arg_parse;
+mod redirect;
 
 enum ExecResult {
     Exit(i32),
@@ -44,14 +46,18 @@ fn handle_input(input: &str) -> Result<ExecResult> {
     ]);
 
     let (command, args) = ArgParser::new().parse_args(input)?;
+    let (args, redirection_info) = check_for_redirections(&args);
 
-    match command.as_str() {
+    let mut output = redirection_info.get_output();
+    output.open()?;
+
+    let result = match command.as_str() {
         "cd" => change_directory(&args),
         "echo" => {
             for arg in args {
-                print!("{} ", arg);
+                output.print(&format!("{arg} "));
             }
-            println!();
+            output.println("");
             Ok(ExecResult::Continue)
         }
         "exit" => {
@@ -62,38 +68,44 @@ fn handle_input(input: &str) -> Result<ExecResult> {
                 .unwrap_or(1);
             Ok(ExecResult::Exit(code))
         },
-        "pwd" => print_current_dir(),
+        "pwd" => print_current_dir(&mut output),
         "type" => {
             let cmd = args
                 .get(0)
                 .ok_or(anyhow!("Missing command argument"))?;
             if built_in_commands.contains(cmd) {
-                println!("{cmd} is a shell builtin");
+                output.println(&format!("{cmd} is a shell builtin"));
                 Ok(ExecResult::Continue)
             } else {
                 find_command_in_path(cmd).map(|cmd_path| {
-                    println!("{cmd} is {cmd_path}");
+                    output.println(&format!("{cmd} is {cmd_path}"));
                     ExecResult::Continue
                 })
             }
         }
         other => find_command_in_path(other).map(|_| {
-            let output = Command::new(other)
+            let out = Command::new(other)
                 .args(args)
                 .output();
-            match output {
-                Ok(output) =>
-                    print!("{}", String::from_utf8_lossy(&output.stdout)),
+            match out {
+                Ok(out) => {
+                    output.print(&format!("{}", String::from_utf8_lossy(&out.stdout)));
+                    eprint!("{}", String::from_utf8_lossy(&out.stderr))
+                }
                 Err(err) => eprint!("{}", err),
             }
             ExecResult::Continue
         })
-    }
+    };
+
+    output.close();
+
+    result
 }
 
-fn print_current_dir() -> Result<ExecResult> {
+fn print_current_dir(output: &mut Box<dyn Output>) -> Result<ExecResult> {
     let current_dir = env::current_dir()?;
-    println!("{}", current_dir.display());
+    output.println(&format!("{}", current_dir.display()));
     Ok(ExecResult::Continue)
 }
 
@@ -135,6 +147,39 @@ fn find_command_in_path(command: &str) -> Result<String> {
     }
 
     Err(anyhow!("{command}: not found"))
+}
+
+fn check_for_redirections(args: &Vec<String>) -> (Vec<String>, RedirectionInfo) {
+    let mut redirection_info = RedirectionInfo::new();
+    let mut new_args = Vec::new();
+    let num_args = args.len();
+    if num_args == 0 {
+        return (args.clone(), redirection_info);
+    }
+
+    let mut i = 0;
+
+    while i < num_args {
+        let arg = &args[i];
+        if i == num_args - 1 {
+            new_args.push(arg.to_string());
+            i += 1;
+            continue;
+        }
+        match arg.as_str() {
+            ">" | "1>" => {
+                let file_path = args[i+1].clone();
+                redirection_info.redirect_stdout(file_path);
+                i += 2;
+            }
+            _ => {
+                new_args.push(arg.clone());
+                i += 1;
+            },
+        }
+    }
+
+    (new_args, redirection_info)
 }
 
 
