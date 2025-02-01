@@ -51,6 +51,9 @@ fn handle_input(input: &str) -> Result<ExecResult> {
     let mut output = redirection_info.get_output();
     output.open()?;
 
+    let mut error_output = redirection_info.get_error_output();
+    error_output.open()?;
+
     let result = match command.as_str() {
         "cd" => change_directory(&args),
         "echo" => {
@@ -90,9 +93,9 @@ fn handle_input(input: &str) -> Result<ExecResult> {
             match out {
                 Ok(out) => {
                     output.print(&format!("{}", String::from_utf8_lossy(&out.stdout)));
-                    eprint!("{}", String::from_utf8_lossy(&out.stderr))
+                    error_output.print(&format!("{}", String::from_utf8_lossy(&out.stderr)));
                 }
-                Err(err) => eprint!("{}", err),
+                Err(err) => error_output.print(&format!("{}", err)),
             }
             ExecResult::Continue
         })
@@ -170,6 +173,11 @@ fn check_for_redirections(args: &Vec<String>) -> (Vec<String>, RedirectionInfo) 
             ">" | "1>" => {
                 let file_path = args[i+1].clone();
                 redirection_info.redirect_stdout(file_path);
+                i += 2;
+            }
+            "2>" => {
+                let file_path = args[i+1].clone();
+                redirection_info.redirect_stderr(file_path);
                 i += 2;
             }
             _ => {

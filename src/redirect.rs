@@ -6,14 +6,14 @@ use std::io::Write;
 #[derive(Debug)]
 pub struct RedirectionInfo {
     stdout: Option<String>,
-    _stderr: Option<String>,
+    stderr: Option<String>,
 }
 
 impl RedirectionInfo {
     pub fn new() -> RedirectionInfo {
         RedirectionInfo{
             stdout: None,
-            _stderr: None,
+            stderr: None,
         }
     }
 
@@ -21,8 +21,8 @@ impl RedirectionInfo {
         self.stdout = Some(file_path);
     }
 
-    pub fn _redirect_stderr(&mut self, file_path: String) {
-        self._stderr = Some(file_path);
+    pub fn redirect_stderr(&mut self, file_path: String) {
+        self.stderr = Some(file_path);
     }
 
     pub fn get_output(&self) -> Box<dyn Output> {
@@ -33,7 +33,15 @@ impl RedirectionInfo {
 
         ret
     }
-}
+
+    pub fn get_error_output(&self) -> Box<dyn Output> {
+        let ret: Box<dyn Output> = match &self.stderr {
+            Some(path) => Box::new(FileOutput::new(path.clone())),
+            None => Box::new(StdErrorOutput{})
+        };
+
+        ret
+    }}
 
 pub trait Output: Debug {
     fn open(&mut self) -> Result<()>;
@@ -57,6 +65,21 @@ impl Output for StdOutput {
 
     fn print(&mut self, text: &str) {
         print!("{}", text);
+    }
+
+    fn close(&mut self) {}
+}
+
+#[derive(Debug)]
+struct StdErrorOutput {}
+
+impl Output for StdErrorOutput {
+    fn open(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn print(&mut self, text: &str) {
+        eprint!("{}", text);
     }
 
     fn close(&mut self) {}
