@@ -1,5 +1,5 @@
 use crate::arg_parse::ArgParser;
-use crate::redirect::{Output, RedirectionInfo};
+use crate::redirect::{FileOpenMode, Output, RedirectionInfo};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::env;
@@ -172,12 +172,22 @@ fn check_for_redirections(args: &Vec<String>) -> (Vec<String>, RedirectionInfo) 
         match arg.as_str() {
             ">" | "1>" => {
                 let file_path = args[i+1].clone();
-                redirection_info.redirect_stdout(file_path);
+                redirection_info.redirect_stdout(file_path, FileOpenMode::Create);
                 i += 2;
             }
             "2>" => {
                 let file_path = args[i+1].clone();
-                redirection_info.redirect_stderr(file_path);
+                redirection_info.redirect_stderr(file_path, FileOpenMode::Create);
+                i += 2;
+            }
+            ">>" | "1>>" => {
+                let file_path = args[i+1].clone();
+                redirection_info.redirect_stdout(file_path, FileOpenMode::Append);
+                i += 2;
+            }
+            "2>>" => {
+                let file_path = args[i+1].clone();
+                redirection_info.redirect_stderr(file_path, FileOpenMode::Append);
                 i += 2;
             }
             _ => {

@@ -1,12 +1,18 @@
 use std::fmt::Debug;
 use anyhow::Result;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 
 #[derive(Debug)]
 pub struct RedirectionInfo {
-    stdout: Option<String>,
-    stderr: Option<String>,
+    stdout: Option<(String, FileOpenMode)>,
+    stderr: Option<(String, FileOpenMode)>,
+}
+
+#[derive(Debug, Clone)]
+pub enum FileOpenMode {
+    Create,
+    Append,
 }
 
 impl RedirectionInfo {
@@ -17,17 +23,18 @@ impl RedirectionInfo {
         }
     }
 
-    pub fn redirect_stdout(&mut self, file_path: String) {
-        self.stdout = Some(file_path);
+    pub fn redirect_stdout(&mut self, file_path: String, open_mode: FileOpenMode) {
+        self.stdout = Some((file_path, open_mode));
     }
 
-    pub fn redirect_stderr(&mut self, file_path: String) {
-        self.stderr = Some(file_path);
+    pub fn redirect_stderr(&mut self, file_path: String, open_mode: FileOpenMode) {
+        self.stderr = Some((file_path, open_mode));
     }
 
     pub fn get_output(&self) -> Box<dyn Output> {
         let ret: Box<dyn Output> = match &self.stdout {
-            Some(path) => Box::new(FileOutput::new(path.clone())),
+            Some((path, open_mode)) =>
+                Box::new(FileOutput::new(path.clone(), open_mode.clone())),
             None => Box::new(StdOutput{})
         };
 
@@ -36,7 +43,8 @@ impl RedirectionInfo {
 
     pub fn get_error_output(&self) -> Box<dyn Output> {
         let ret: Box<dyn Output> = match &self.stderr {
-            Some(path) => Box::new(FileOutput::new(path.clone())),
+            Some((path, open_mode)) =>
+                Box::new(FileOutput::new(path.clone(), open_mode.clone())),
             None => Box::new(StdErrorOutput{})
         };
 
@@ -88,13 +96,15 @@ impl Output for StdErrorOutput {
 #[derive(Debug)]
 struct FileOutput {
     file_path: String,
+    open_mode: FileOpenMode,
     file: Option<File>,
 }
 
 impl FileOutput {
-    pub fn new(file_path: String) -> FileOutput {
+    pub fn new(file_path: String, open_mode: FileOpenMode) -> FileOutput {
         FileOutput{
             file_path,
+            open_mode,
             file: None,
         }
     }
@@ -102,7 +112,18 @@ impl FileOutput {
 
 impl Output for FileOutput {
     fn open(&mut self) -> Result<()> {
-        self.file = Some(File::create(&self.file_path)?);
+        let mut options = OpenOptions::new();
+        self.file = match &self.open_mode {
+            FileOpenMode::Create => {
+                Some(File::create(self.file_path.as_str())?)
+            }
+            FileOpenMode::Append => {
+                Some(options
+                    .create(true)
+                    .append(true)
+                    .open(self.file_path.as_str())?)
+            }
+        };
         Ok(())
     }
 
