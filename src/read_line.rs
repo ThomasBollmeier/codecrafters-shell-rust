@@ -24,6 +24,9 @@ pub fn read_line(tab_completion: TabCompletion) -> String {
                             termion::clear::AfterCursor
                         ).unwrap();    buffer = completion;
                         print!("{}", buffer);
+                    } else {
+                        let bell = '\x07';
+                        print!("{}", bell);
                     }
                 },
                 Key::Char(c) => {
