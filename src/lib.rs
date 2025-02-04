@@ -5,7 +5,9 @@ use std::collections::HashSet;
 use std::env;
 use std::io::{self, Write};
 use std::process::Command;
+use crate::read_line::read_line;
 
+mod read_line;
 mod arg_parse;
 mod redirect;
 
@@ -22,9 +24,7 @@ pub fn repl() -> i32 {
         io::stdout().flush().unwrap();
 
         // Wait for user input
-        let stdin = io::stdin();
-        let mut input = String::new();
-        stdin.read_line(&mut input).unwrap();
+        let input = read_line(command_completion);
 
         match handle_input(&input) {
             Ok(exec_result   ) => match exec_result {
@@ -37,13 +37,7 @@ pub fn repl() -> i32 {
 }
 
 fn handle_input(input: &str) -> Result<ExecResult> {
-    let built_in_commands = HashSet::from([
-        "cd".to_string(),
-        "echo".to_string(),
-        "exit".to_string(),
-        "pwd".to_string(),
-        "type".to_string(),
-    ]);
+    let built_in_commands = get_builtin_commands();
 
     let (command, args) = ArgParser::new().parse_args(input)?;
     let (args, redirection_info) = check_for_redirections(&args);
@@ -104,6 +98,34 @@ fn handle_input(input: &str) -> Result<ExecResult> {
     output.close();
 
     result
+}
+
+fn get_builtin_commands() -> HashSet<String> {
+    HashSet::from([
+        "cd".to_string(),
+        "echo".to_string(),
+        "exit".to_string(),
+        "pwd".to_string(),
+        "type".to_string(),
+    ])
+}
+
+fn command_completion(prefix: &str) -> Option<String> {
+    let built_in_commands = get_builtin_commands();
+    let mut matched_commands = vec![];
+
+    for cmd in built_in_commands {
+        if cmd.starts_with(prefix) {
+            matched_commands.push(cmd.clone());
+        }
+    }
+
+    if matched_commands.len() == 1 {
+        let matched_command = matched_commands.first().cloned().unwrap();
+        Some(matched_command + " ")
+    } else {
+        None
+    }
 }
 
 fn print_current_dir(output: &mut Box<dyn Output>) -> Result<ExecResult> {
