@@ -28,7 +28,7 @@ pub fn repl() -> i32 {
         io::stdout().flush().unwrap();
 
         // Wait for user input
-        let input = read_line(command_completion);
+        let input = read_line(PROMPT, command_completion);
 
         match handle_input(&input) {
             Ok(exec_result   ) => match exec_result {
@@ -159,7 +159,7 @@ fn is_executable(entry: &DirEntry) -> bool {
     }
 }
 
-fn command_completion(prefix: &str) -> Option<String> {
+fn command_completion(prefix: &str) -> Vec<String> {
     let mut matched_commands = vec![];
 
     for cmd in get_builtin_commands().union(&get_executables()) {
@@ -168,12 +168,8 @@ fn command_completion(prefix: &str) -> Option<String> {
         }
     }
 
-    if matched_commands.len() == 1 {
-        let matched_command = matched_commands.first().cloned().unwrap();
-        Some(matched_command + " ")
-    } else {
-        None
-    }
+    matched_commands.sort();
+    matched_commands
 }
 
 fn print_current_dir(output: &mut Box<dyn Output>) -> Result<ExecResult> {
