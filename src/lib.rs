@@ -3,7 +3,10 @@ use crate::redirect::{FileOpenMode, Output, RedirectionInfo};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::env;
+use std::fs::{read_dir, DirEntry};
 use std::io::{self, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::Command;
 use crate::read_line::read_line;
 
@@ -19,6 +22,7 @@ enum ExecResult {
 const PROMPT: &str = "$ ";
 
 pub fn repl() -> i32 {
+
     loop {
         print!("{}", PROMPT);
         io::stdout().flush().unwrap();
@@ -110,11 +114,55 @@ fn get_builtin_commands() -> HashSet<String> {
     ])
 }
 
+fn get_executables() -> HashSet<String> {
+    let mut ret = HashSet::new();
+
+    if let Ok(path_var) = env::var("PATH") {
+        for path in env::split_paths(&path_var) {
+            for exec in get_executables_in_path(&path) {
+                ret.insert(exec);
+            }
+        }
+    } else {
+        return ret;
+    }
+
+    ret
+}
+
+fn get_executables_in_path(path: &PathBuf) -> HashSet<String> {
+    let mut ret = HashSet::new();
+
+    if let Ok(entries) = read_dir(&path) {
+        for entry in entries {
+            if entry.is_err() {
+                continue;
+            }
+            let entry = entry.unwrap();
+            if is_executable(&entry) {
+                let file_name = entry.file_name().into_string().unwrap();
+                ret.insert(file_name);
+            }
+        }
+    }
+
+    ret
+}
+
+fn is_executable(entry: &DirEntry) -> bool {
+    match entry.metadata() {
+        Ok(metadata) => {
+            let permissions = metadata.permissions();
+            permissions.mode() & 0o100 == 0o100
+        }
+        Err(_) => false,
+    }
+}
+
 fn command_completion(prefix: &str) -> Option<String> {
-    let built_in_commands = get_builtin_commands();
     let mut matched_commands = vec![];
 
-    for cmd in built_in_commands {
+    for cmd in get_builtin_commands().union(&get_executables()) {
         if cmd.starts_with(prefix) {
             matched_commands.push(cmd.clone());
         }
