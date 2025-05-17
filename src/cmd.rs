@@ -67,15 +67,17 @@ fn run_command(
     let mut out_str = String::new();
     let mut command_output_opt: Option<CommandOutput> = None;
 
+    let piped = is_part_of_pipe && !is_last_in_pipe;
+
     let built_in_commands = get_builtin_commands();
 
     let exec_result = match command {
         "cd" => change_directory(&args),
         "echo" => {
             for arg in args {
-                print_out(&mut output, &mut out_str, &format!("{arg} "));
+                print_out(&mut output, &mut out_str, piped,&format!("{arg} "));
             }
-            println_out(&mut output, &mut out_str, "");
+            println_out(&mut output, &mut out_str, piped,"");
             Ok(ExecResult::Continue)
         }
         "exit" => {
@@ -86,19 +88,20 @@ fn run_command(
                 .unwrap_or(1);
             Ok(ExecResult::Exit(code))
         }
-        "pwd" => print_current_dir(&mut output, &mut out_str),
+        "pwd" => print_current_dir(&mut output, &mut out_str, piped),
         "type" => {
             let cmd = args.get(0).ok_or(anyhow!("Missing command argument"))?;
             if built_in_commands.contains(cmd) {
                 println_out(
                     &mut output,
                     &mut out_str,
+                    piped,
                     &format!("{cmd} is a shell builtin"),
                 );
                 Ok(ExecResult::Continue)
             } else {
                 find_command_in_path(cmd).map(|cmd_path| {
-                    println_out(&mut output, &mut out_str, &format!("{cmd} is {cmd_path}"));
+                    println_out(&mut output, &mut out_str, piped, &format!("{cmd} is {cmd_path}"));
                     ExecResult::Continue
                 })
             }
@@ -147,12 +150,12 @@ fn run_process(
 ) -> Result<CommandOutput> {
     let mut cmd = Command::new(command);
     cmd.args(args);
-    
-    if !is_part_of_pipe {  
+
+    if !is_part_of_pipe {
         let output = cmd.output();
         return output.map(|out| CommandOutput::Out(out)).map_err(|err| err.into());
     }
-    
+
     if !is_last_in_pipe {
         cmd.stdout(Stdio::piped());
     }
@@ -194,15 +197,21 @@ fn run_process(
     Ok(output)
 }
 
-fn print_out(out: &mut Box<dyn Output>, out_str: &mut String, text: &str) {
-    out.print(text);
+fn print_out(out: &mut Box<dyn Output>, out_str: &mut String, piped: bool, text: &str) {
+    if !piped {
+        out.print(text);
+    }
     out_str.push_str(text);
 }
 
-fn println_out(out: &mut Box<dyn Output>, out_str: &mut String, text: &str) {
-    out.println(text);
+fn println_out(out: &mut Box<dyn Output>, out_str: &mut String, piped: bool, text: &str) {
+    if !piped {
+        out.println(text);
+    }
     out_str.push_str(text);
-    out_str.push('\n');
+    if !piped {
+        out_str.push('\n');
+    }
 }
 
 fn check_for_redirections(args: &Vec<String>) -> (Vec<String>, RedirectionInfo) {
@@ -293,8 +302,8 @@ fn find_command_in_path(command: &str) -> Result<String> {
     Err(anyhow!("{command}: not found"))
 }
 
-fn print_current_dir(output: &mut Box<dyn Output>, out_str: &mut String) -> Result<ExecResult> {
+fn print_current_dir(output: &mut Box<dyn Output>, out_str: &mut String, piped: bool) -> Result<ExecResult> {
     let current_dir = env::current_dir()?;
-    println_out(output, out_str, &format!("{}", current_dir.display()));
+    println_out(output, out_str, piped,&format!("{}", current_dir.display()));
     Ok(ExecResult::Continue)
 }

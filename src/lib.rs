@@ -122,4 +122,10 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[test]
+    fn handle_input_builtin_w_pipe() {
+        let input = "echo pineapple-grape | wc";
+        let result = handle_input(input);
+        assert!(result.is_ok());
+    }
 }
