@@ -1,3 +1,6 @@
+pub type Command = (String, Vec<String>);
+pub type CommandList = Vec<Command>;
+
 pub struct ArgParser {
     pos: usize,
     chars: Vec<char>,
@@ -12,7 +15,7 @@ impl ArgParser {
         }
     }
 
-    pub fn parse_args(&mut self, input: &str) -> anyhow::Result<(String, Vec<String>)> {
+    pub fn parse_args(&mut self, input: &str) -> anyhow::Result<CommandList> {
         self.pos = 0;
         self.chars = input.chars().collect();
 
@@ -20,6 +23,7 @@ impl ArgParser {
             return Err(anyhow::anyhow!("input is empty"));
         }
 
+        let mut ret = vec![];
         let mut parts: Vec<String> = vec![];
         let mut part = String::new();
 
@@ -30,6 +34,20 @@ impl ArgParser {
                 Some(ch) => ch,
                 None => break,
             };
+
+            if ch == '|' {
+                self.pos += 1;
+                if !part.is_empty() {
+                    parts.push(part);
+                    part = String::new();
+                }
+                if parts.is_empty() {
+                    return Err(anyhow::anyhow!("pipe without command"));
+                }
+                ret.push(Self::get_command(parts));
+                parts = vec![];
+                continue;
+            }
 
             let next_str = match ch {
                 '\'' => self.scan_single_quoted_string(),
@@ -53,10 +71,15 @@ impl ArgParser {
             parts.push(part);
         }
 
+        ret.push(Self::get_command(parts));
+
+        Ok(ret)
+    }
+
+    fn get_command(parts: Vec<String>) -> Command {
         let command = parts[0].clone();
         let args = parts.into_iter().skip(1).collect::<Vec<String>>();
-
-        Ok((command, args))
+        (command, args)
     }
 
     fn is_done(&self) -> bool {
@@ -163,10 +186,11 @@ mod tests {
         let mut parser = ArgParser::new();
         let input = "echo eins   zwei drei   ";
 
-        let (command, args) = parser.parse_args(input).unwrap();
-
+        let commands = parser.parse_args(input).unwrap();
+        assert_eq!(commands.len(), 1);
+        let (command, args) = &commands[0];
         assert_eq!(command, "echo");
-        assert_eq!(args, vec!["eins", "zwei", "drei"]);
+        assert_eq!(args, &vec!["eins", "zwei", "drei"]);
     }
 
     #[test]
@@ -174,10 +198,11 @@ mod tests {
         let mut parser = ArgParser::new();
         let input = "echo 'eins   zwei' drei   ";
 
-        let (command, args) = parser.parse_args(input).unwrap();
-
+        let commands = parser.parse_args(input).unwrap();
+        assert_eq!(commands.len(), 1);
+        let (command, args) = &commands[0];
         assert_eq!(command, "echo");
-        assert_eq!(args, vec!["eins   zwei", "drei"]);
+        assert_eq!(args, &vec!["eins   zwei", "drei"]);
     }
 
     #[test]
@@ -185,10 +210,11 @@ mod tests {
         let mut parser = ArgParser::new();
         let input = r#"echo "eins   'zwei' " drei   "#;
 
-        let (command, args) = parser.parse_args(input).unwrap();
-
+        let commands = parser.parse_args(input).unwrap();
+        assert_eq!(commands.len(), 1);
+        let (command, args) = &commands[0];
         assert_eq!(command, "echo");
-        assert_eq!(args, vec!["eins   'zwei' ", "drei"]);
+        assert_eq!(args, &vec!["eins   'zwei' ", "drei"]);
     }
 
     #[test]
@@ -197,9 +223,7 @@ mod tests {
         let input = "";
 
         match parser.parse_args(input) {
-            Ok((command, _)) => {
-                assert!(false, "error expected, but got {}", command);
-            }
+            Ok(_) => assert!(false, "error expected"),
             Err(_) => assert!(true),
         }
     }
@@ -209,9 +233,22 @@ mod tests {
         let mut parser = ArgParser::new();
         let input = r#"echo \'\"script world\"\'"#;
 
-        let (command, args) = parser.parse_args(input).unwrap();
-
+        let commands = parser.parse_args(input).unwrap();
+        assert_eq!(commands.len(), 1);
+        let (command, args) = &commands[0];
         assert_eq!(command, "echo");
-        assert_eq!(args, vec!["'\"script world\"'"]);
+        assert_eq!(args, &vec!["'\"script", "world\"'"]);
+    }
+    
+    #[test]
+    fn test_pipe() {
+        let mut parser = ArgParser::new();
+        let input = "echo eins | echo zwei | echo drei";
+
+        let commands = parser.parse_args(input).unwrap();
+        assert_eq!(commands.len(), 3);
+        assert_eq!(commands[0].0, "echo");
+        assert_eq!(commands[1].0, "echo");
+        assert_eq!(commands[2].0, "echo");
     }
 }
