@@ -31,15 +31,21 @@ pub fn get_builtin_commands() -> HashSet<String> {
     ])
 }
 
-pub fn run_commands(commands: &CommandList) -> Result<ExecResult> {
+pub fn run_commands(commands: &CommandList, history: &Vec<String>) -> Result<ExecResult> {
     let mut prev_output: Option<CommandOutput> = None;
     let mut exec_result = ExecResult::Continue;
 
     let last_idx = commands.len() - 1;
 
     for (idx, (command, args)) in commands.iter().enumerate() {
-        let (result, output) =
-            run_command(command, args, prev_output, last_idx > 0, idx == last_idx)?;
+        let (result, output) = run_command(
+            command,
+            args,
+            prev_output,
+            last_idx > 0,
+            idx == last_idx,
+            history,
+        )?;
         exec_result = result;
         prev_output = Some(output);
         if exec_result != ExecResult::Continue {
@@ -56,6 +62,7 @@ fn run_command(
     prev_output: Option<CommandOutput>,
     is_part_of_pipe: bool,
     is_last_in_pipe: bool,
+    history: &Vec<String>,
 ) -> Result<(ExecResult, CommandOutput)> {
     let (args, redirection_info) = check_for_redirections(args);
 
@@ -76,9 +83,9 @@ fn run_command(
         "cd" => change_directory(&args),
         "echo" => {
             for arg in args {
-                print_out(&mut output, &mut out_str, piped,&format!("{arg} "));
+                print_out(&mut output, &mut out_str, piped, &format!("{arg} "));
             }
-            println_out(&mut output, &mut out_str, piped,"");
+            println_out(&mut output, &mut out_str, piped, "");
             Ok(ExecResult::Continue)
         }
         "exit" => {
@@ -102,13 +109,25 @@ fn run_command(
                 Ok(ExecResult::Continue)
             } else {
                 find_command_in_path(cmd).map(|cmd_path| {
-                    println_out(&mut output, &mut out_str, piped, &format!("{cmd} is {cmd_path}"));
+                    println_out(
+                        &mut output,
+                        &mut out_str,
+                        piped,
+                        &format!("{cmd} is {cmd_path}"),
+                    );
                     ExecResult::Continue
                 })
             }
         }
         "history" => {
-            println_out(&mut output, &mut out_str, piped,"history is not implemented yet");
+            for (idx, input) in history.iter().enumerate() {
+                println_out(
+                    &mut output,
+                    &mut out_str,
+                    piped,
+                    &format!("{:>5}  {}", idx + 1, input),
+                );
+            }
             Ok(ExecResult::Continue)
         }
         other => find_command_in_path(other).map(|_| {
@@ -158,7 +177,9 @@ fn run_process(
 
     if !is_part_of_pipe {
         let output = cmd.output();
-        return output.map(|out| CommandOutput::Out(out)).map_err(|err| err.into());
+        return output
+            .map(|out| CommandOutput::Out(out))
+            .map_err(|err| err.into());
     }
 
     if !is_last_in_pipe {
@@ -307,8 +328,17 @@ fn find_command_in_path(command: &str) -> Result<String> {
     Err(anyhow!("{command}: not found"))
 }
 
-fn print_current_dir(output: &mut Box<dyn Output>, out_str: &mut String, piped: bool) -> Result<ExecResult> {
+fn print_current_dir(
+    output: &mut Box<dyn Output>,
+    out_str: &mut String,
+    piped: bool,
+) -> Result<ExecResult> {
     let current_dir = env::current_dir()?;
-    println_out(output, out_str, piped,&format!("{}", current_dir.display()));
+    println_out(
+        output,
+        out_str,
+        piped,
+        &format!("{}", current_dir.display()),
+    );
     Ok(ExecResult::Continue)
 }

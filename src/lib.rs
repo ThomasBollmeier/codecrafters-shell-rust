@@ -17,14 +17,16 @@ mod redirect;
 const PROMPT: &str = "$ ";
 
 pub fn repl() -> i32 {
+    let mut history: Vec<String> = vec![];
     loop {
         print!("{}", PROMPT);
         io::stdout().flush().unwrap();
 
         // Wait for user input
         let input = read_line(PROMPT, command_completion);
+        history.push(input.clone());
 
-        match handle_input(&input) {
+        match handle_input(&input, &history) {
             Ok(exec_result) => match exec_result {
                 ExecResult::Exit(code) => return code,
                 ExecResult::Continue => continue,
@@ -34,9 +36,9 @@ pub fn repl() -> i32 {
     }
 }
 
-fn handle_input(input: &str) -> Result<ExecResult> {
+fn handle_input(input: &str, history: &Vec<String>) -> Result<ExecResult> {
     let commands = ArgParser::new().parse_args(input)?;
-    cmd::run_commands(&commands)
+    cmd::run_commands(&commands, history)
 }
 
 fn get_executables() -> HashSet<String> {
