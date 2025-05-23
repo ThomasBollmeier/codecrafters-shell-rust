@@ -27,6 +27,7 @@ pub fn get_builtin_commands() -> HashSet<String> {
         "exit".to_string(),
         "pwd".to_string(),
         "type".to_string(),
+        "history".to_string(),
     ])
 }
 
@@ -105,6 +106,10 @@ fn run_command(
                     ExecResult::Continue
                 })
             }
+        }
+        "history" => {
+            println_out(&mut output, &mut out_str, piped,"history is not implemented yet");
+            Ok(ExecResult::Continue)
         }
         other => find_command_in_path(other).map(|_| {
             let out_result =
