@@ -120,7 +120,18 @@ fn run_command(
             }
         }
         "history" => {
-            for (idx, input) in history.iter().enumerate() {
+            let entries = if args.is_empty() {
+                history
+            } else {
+                let num = args[0].parse::<usize>()?;
+                if num > history.len() {
+                    history
+                } else {
+                    &history[history.len() - num..]
+                }
+                
+            };
+            for (idx, input) in entries.iter().enumerate() {
                 println_out(
                     &mut output,
                     &mut out_str,

@@ -106,28 +106,28 @@ mod tests {
     #[test]
     fn handle_input_pipe() {
         let input = "tail -f README.md | head -n 5";
-        let result = handle_input(input);
+        let result = handle_input(input, &vec![]);
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_out_redir() {
         let input = "ls -l  >> /dev/null";
-        let result = handle_input(input);
+        let result = handle_input(input, &vec![]);
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_error_redir() {
         let input = "ls -l nonexistent 2>> /dev/null";
-        let result = handle_input(input);
+        let result = handle_input(input, &vec![]);
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_builtin_w_pipe() {
         let input = "echo pineapple-grape | wc";
-        let result = handle_input(input);
+        let result = handle_input(input, &vec![]);
         assert!(result.is_ok());
     }
 }
