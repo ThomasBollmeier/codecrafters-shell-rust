@@ -5,11 +5,12 @@ use termion::raw::{IntoRawMode, RawTerminal};
 
 pub type TabCompletion = fn (prefix: &str) -> Vec<String>;
 
-pub fn read_line(prompt: &str, tab_completion: TabCompletion) -> String {
+pub fn read_line(prompt: &str, tab_completion: TabCompletion, history: &[String]) -> String {
     let mut buffer = String::new();
     {
         let mut stdout = stdout().into_raw_mode().unwrap();
         let mut commands = vec![];
+        let mut history_idx = history.len();
 
         for key in stdin().keys().flatten() {
             match key {
@@ -66,6 +67,27 @@ pub fn read_line(prompt: &str, tab_completion: TabCompletion) -> String {
                         termion::cursor::Left(1),
                         termion::clear::AfterCursor
                     ).unwrap();
+                }
+                Key::Up => {
+                    if history_idx > 0 {
+                        history_idx -= 1;
+                        goto_begin_of_line(&mut stdout, prompt, &buffer);
+                        buffer = history[history_idx].clone();
+                        print!("{}{}{}", termion::clear::AfterCursor, prompt, buffer);
+                    }
+                }
+                Key::Down => {
+                    if history_idx < history.len() - 1 {
+                        history_idx += 1;
+                        goto_begin_of_line(&mut stdout, prompt, &buffer);
+                        buffer = history[history_idx].clone();
+                        print!("{}{}{}", termion::clear::AfterCursor, prompt, buffer);
+                    } else if history_idx == history.len() - 1 {
+                        history_idx += 1; // Move past the last entry
+                        goto_begin_of_line(&mut stdout, prompt, &buffer);
+                        buffer.clear();
+                        print!("{}{}", termion::clear::AfterCursor, prompt);
+                    }
                 }
                 _ => continue,
             }

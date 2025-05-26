@@ -23,7 +23,7 @@ pub fn repl() -> i32 {
         io::stdout().flush().unwrap();
 
         // Wait for user input
-        let input = read_line(PROMPT, command_completion);
+        let input = read_line(PROMPT, command_completion, &history);
         history.push(input.clone());
 
         match handle_input(&input, &history) {
