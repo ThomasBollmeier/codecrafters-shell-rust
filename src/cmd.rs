@@ -4,8 +4,9 @@ use anyhow::{anyhow, Result};
 use std::cmp::PartialEq;
 use std::collections::HashSet;
 use std::env;
-use std::io::Write;
 use std::process::{Child, ChildStdout, Command, Output as ProcessOutput, Stdio};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 
 #[derive(Debug, PartialEq)]
 pub enum ExecResult {
@@ -156,12 +157,12 @@ fn run_command(
 }
 
 fn run_history(
-    args: Vec<String>, 
-    history: &mut Vec<String>, 
-    output: &mut Box<dyn Output>, 
-    out_str: &mut String, 
+    args: Vec<String>,
+    history: &mut Vec<String>,
+    output: &mut Box<dyn Output>,
+    out_str: &mut String,
     piped: bool) -> Result<ExecResult> {
-    
+
     let entries = if args.is_empty() {
         history
     } else {
@@ -173,13 +174,17 @@ fn run_history(
                 load_history(&args[1], history)?;
                 return Ok(ExecResult::Continue);
             }
+            "-w" => {
+                save_history(&args[1], history)?;
+                return Ok(ExecResult::Continue);
+            }
             _ => {
                 let num = args[0].parse::<usize>()?;
                 if num > history.len() {
                     history
                 } else {
                     &history[history.len() - num..]
-                }        
+                }
             }
         }
     };
@@ -195,12 +200,9 @@ fn run_history(
 }
 
 fn load_history(path: &str, history: &mut Vec<String>) -> Result<()> {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader};
-
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    
+
     for line in reader.lines() {
         match line {
             Ok(line) => {
@@ -210,6 +212,14 @@ fn load_history(path: &str, history: &mut Vec<String>) -> Result<()> {
             }
             Err(err) => return Err(anyhow!("Error reading history file: {}", err)),
         }
+    }
+    Ok(())
+}
+
+fn save_history(path: &str, history: &Vec<String>) -> Result<()> {
+    let mut file = File::create(path)?;
+    for entry in history {
+        writeln!(file, "{}", entry)?;
     }
     Ok(())
 }
