@@ -31,7 +31,7 @@ pub fn get_builtin_commands() -> HashSet<String> {
     ])
 }
 
-pub fn run_commands(commands: &CommandList, history: &Vec<String>) -> Result<ExecResult> {
+pub fn run_commands(commands: &CommandList, history: &mut Vec<String>) -> Result<ExecResult> {
     let mut prev_output: Option<CommandOutput> = None;
     let mut exec_result = ExecResult::Continue;
 
@@ -62,7 +62,7 @@ fn run_command(
     prev_output: Option<CommandOutput>,
     is_part_of_pipe: bool,
     is_last_in_pipe: bool,
-    history: &Vec<String>,
+    history: &mut Vec<String>,
 ) -> Result<(ExecResult, CommandOutput)> {
     let (args, redirection_info) = check_for_redirections(args);
 
@@ -119,28 +119,7 @@ fn run_command(
                 })
             }
         }
-        "history" => {
-            let entries = if args.is_empty() {
-                history
-            } else {
-                let num = args[0].parse::<usize>()?;
-                if num > history.len() {
-                    history
-                } else {
-                    &history[history.len() - num..]
-                }
-                
-            };
-            for (idx, input) in entries.iter().enumerate() {
-                println_out(
-                    &mut output,
-                    &mut out_str,
-                    piped,
-                    &format!("{:>5}  {}", idx + 1, input),
-                );
-            }
-            Ok(ExecResult::Continue)
-        }
+        "history" => run_history(args, history, &mut output, &mut out_str, piped),
         other => find_command_in_path(other).map(|_| {
             let out_result =
                 run_process(other, &args, prev_output, is_part_of_pipe, is_last_in_pipe);
@@ -174,6 +153,65 @@ fn run_command(
         }
         Err(err) => Err(err),
     }
+}
+
+fn run_history(
+    args: Vec<String>, 
+    history: &mut Vec<String>, 
+    output: &mut Box<dyn Output>, 
+    out_str: &mut String, 
+    piped: bool) -> Result<ExecResult> {
+    
+    let entries = if args.is_empty() {
+        history
+    } else {
+        match args[0].as_str() {
+            "-r" => {
+                if args.len() < 2 {
+                    return Err(anyhow!("syntax: history -r <path_to_history_file>"));
+                }
+                load_history(&args[1], history)?;
+                return Ok(ExecResult::Continue);
+            }
+            _ => {
+                let num = args[0].parse::<usize>()?;
+                if num > history.len() {
+                    history
+                } else {
+                    &history[history.len() - num..]
+                }        
+            }
+        }
+    };
+    for (idx, input) in entries.iter().enumerate() {
+        println_out(
+            output,
+            out_str,
+            piped,
+            &format!("{:>5}  {}", idx + 1, input),
+        );
+    }
+    Ok(ExecResult::Continue)
+}
+
+fn load_history(path: &str, history: &mut Vec<String>) -> Result<()> {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    
+    for line in reader.lines() {
+        match line {
+            Ok(line) => {
+                if !line.trim().is_empty() {
+                    history.push(line);
+                }
+            }
+            Err(err) => return Err(anyhow!("Error reading history file: {}", err)),
+        }
+    }
+    Ok(())
 }
 
 fn run_process(
