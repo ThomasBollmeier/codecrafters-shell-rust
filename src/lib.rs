@@ -8,23 +8,26 @@ use std::fs::{read_dir, DirEntry};
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use crate::history::History;
 
 mod arg_parse;
 mod cmd;
 mod read_line;
 mod redirect;
 
+mod history;
+
 const PROMPT: &str = "$ ";
 
 pub fn repl() -> i32 {
-    let mut history: Vec<String> = vec![];
+    let mut history = History::new();
     loop {
         print!("{}", PROMPT);
         io::stdout().flush().unwrap();
 
         // Wait for user input
         let input = read_line(PROMPT, command_completion, &history);
-        history.push(input.clone());
+        history.add_entry(input.clone());
 
         match handle_input(&input, &mut history) {
             Ok(exec_result) => match exec_result {
@@ -36,7 +39,7 @@ pub fn repl() -> i32 {
     }
 }
 
-fn handle_input(input: &str, history: &mut Vec<String>) -> Result<ExecResult> {
+fn handle_input(input: &str, history: &mut History) -> Result<ExecResult> {
     let commands = ArgParser::new().parse_args(input)?;
     cmd::run_commands(&commands, history)
 }
@@ -106,28 +109,28 @@ mod tests {
     #[test]
     fn handle_input_pipe() {
         let input = "tail -f README.md | head -n 5";
-        let result = handle_input(input, &mut vec![]);
+        let result = handle_input(input, &mut History::new());
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_out_redir() {
         let input = "ls -l  >> /dev/null";
-        let result = handle_input(input, &mut vec![]);
+        let result = handle_input(input, &mut History::new());
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_error_redir() {
         let input = "ls -l nonexistent 2>> /dev/null";
-        let result = handle_input(input, &mut vec![]);
+        let result = handle_input(input, &mut History::new());
         assert!(result.is_ok());
     }
 
     #[test]
     fn handle_input_builtin_w_pipe() {
         let input = "echo pineapple-grape | wc";
-        let result = handle_input(input, &mut vec![]);
+        let result = handle_input(input, &mut History::new());
         assert!(result.is_ok());
     }
 }

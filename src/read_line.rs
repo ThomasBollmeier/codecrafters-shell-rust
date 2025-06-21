@@ -2,15 +2,16 @@ use std::io::{stdin, stdout, Stdout, Write};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
+use crate::history::History;
 
 pub type TabCompletion = fn (prefix: &str) -> Vec<String>;
 
-pub fn read_line(prompt: &str, tab_completion: TabCompletion, history: &[String]) -> String {
+pub fn read_line(prompt: &str, tab_completion: TabCompletion, history: &History) -> String {
     let mut buffer = String::new();
     {
         let mut stdout = stdout().into_raw_mode().unwrap();
         let mut commands = vec![];
-        let mut history_idx = history.len();
+        let mut history_idx = history.size();
 
         for key in stdin().keys().flatten() {
             match key {
@@ -77,12 +78,12 @@ pub fn read_line(prompt: &str, tab_completion: TabCompletion, history: &[String]
                     }
                 }
                 Key::Down => {
-                    if history_idx < history.len() - 1 {
+                    if history_idx < history.size() - 1 {
                         history_idx += 1;
                         goto_begin_of_line(&mut stdout, prompt, &buffer);
                         buffer = history[history_idx].clone();
                         print!("{}{}{}", termion::clear::AfterCursor, prompt, buffer);
-                    } else if history_idx == history.len() - 1 {
+                    } else if history_idx == history.size() - 1 {
                         history_idx += 1; // Move past the last entry
                         goto_begin_of_line(&mut stdout, prompt, &buffer);
                         buffer.clear();

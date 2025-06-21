@@ -5,8 +5,8 @@ use std::cmp::PartialEq;
 use std::collections::HashSet;
 use std::env;
 use std::process::{Child, ChildStdout, Command, Output as ProcessOutput, Stdio};
-use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
+use crate::history::History;
 
 #[derive(Debug, PartialEq)]
 pub enum ExecResult {
@@ -32,7 +32,7 @@ pub fn get_builtin_commands() -> HashSet<String> {
     ])
 }
 
-pub fn run_commands(commands: &CommandList, history: &mut Vec<String>) -> Result<ExecResult> {
+pub fn run_commands(commands: &CommandList, history: &mut History) -> Result<ExecResult> {
     let mut prev_output: Option<CommandOutput> = None;
     let mut exec_result = ExecResult::Continue;
 
@@ -63,7 +63,7 @@ fn run_command(
     prev_output: Option<CommandOutput>,
     is_part_of_pipe: bool,
     is_last_in_pipe: bool,
-    history: &mut Vec<String>,
+    history: &mut History,
 ) -> Result<(ExecResult, CommandOutput)> {
     let (args, redirection_info) = check_for_redirections(args);
 
@@ -158,33 +158,33 @@ fn run_command(
 
 fn run_history(
     args: Vec<String>,
-    history: &mut Vec<String>,
+    history: &mut History,
     output: &mut Box<dyn Output>,
     out_str: &mut String,
     piped: bool) -> Result<ExecResult> {
 
     let entries = if args.is_empty() {
-        history
+        history.get_all_entries()
     } else {
         match args[0].as_str() {
             "-r" => {
                 if args.len() < 2 {
                     return Err(anyhow!("syntax: history -r <path_to_history_file>"));
                 }
-                load_history(&args[1], history)?;
+                history.load(&args[1])?;
                 return Ok(ExecResult::Continue);
             }
             "-w" => {
-                save_history(&args[1], history)?;
+                history.save(&args[1])?;
+                return Ok(ExecResult::Continue);
+            }
+            "-a" => {
+                history.append(&args[1])?;
                 return Ok(ExecResult::Continue);
             }
             _ => {
-                let num = args[0].parse::<usize>()?;
-                if num > history.len() {
-                    history
-                } else {
-                    &history[history.len() - num..]
-                }
+                let num_latest = args[0].parse::<usize>()?;
+                history.get_latest_entries(num_latest)
             }
         }
     };
@@ -197,31 +197,6 @@ fn run_history(
         );
     }
     Ok(ExecResult::Continue)
-}
-
-fn load_history(path: &str, history: &mut Vec<String>) -> Result<()> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        match line {
-            Ok(line) => {
-                if !line.trim().is_empty() {
-                    history.push(line);
-                }
-            }
-            Err(err) => return Err(anyhow!("Error reading history file: {}", err)),
-        }
-    }
-    Ok(())
-}
-
-fn save_history(path: &str, history: &Vec<String>) -> Result<()> {
-    let mut file = File::create(path)?;
-    for entry in history {
-        writeln!(file, "{}", entry)?;
-    }
-    Ok(())
 }
 
 fn run_process(
