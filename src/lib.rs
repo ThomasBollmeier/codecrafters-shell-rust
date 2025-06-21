@@ -21,6 +21,13 @@ const PROMPT: &str = "$ ";
 
 pub fn repl() -> i32 {
     let mut history = History::new();
+    let history_file_path = env::var("HISTFILE").unwrap_or("".to_string());
+    if !history_file_path.is_empty() {
+        if let Err(err) = history.load(&history_file_path) {
+            eprintln!("Error loading history: {}", err);
+        }
+    }
+
     loop {
         print!("{}", PROMPT);
         io::stdout().flush().unwrap();
@@ -31,7 +38,14 @@ pub fn repl() -> i32 {
 
         match handle_input(&input, &mut history) {
             Ok(exec_result) => match exec_result {
-                ExecResult::Exit(code) => return code,
+                ExecResult::Exit(code) => {
+                    if !history_file_path.is_empty() {
+                        if let Err(err) = history.save(&history_file_path) {
+                            eprintln!("Error saving history: {}", err);
+                        }
+                    }
+                    return code
+                },
                 ExecResult::Continue => continue,
             },
             Err(msg) => eprintln!("{}", msg),
